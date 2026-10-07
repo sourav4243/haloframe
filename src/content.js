@@ -9,6 +9,9 @@ const CONFIG = {
   fadeStart: 55,      // % of the mask radius that stays fully visible
   fadeReach: 0.9,     // mask radius as a multiple of the video size
   dim: 0.8,
+  glassBlur: 18,      // px, how frosted the panels look
+  glassTint: 0.85,    // 0 to 1, how dark the glass is (higher = easier to read)
+  glassBorder: 0.14,  // 0 to 1, brightness of the thin edge highlight
 };
 
 function findVideo() {
@@ -56,6 +59,27 @@ function injectStyles() {
     #haloframe-near {
       z-index: -1;
       filter: blur(${CONFIG.nearBlur}px) saturate(1.3) brightness(${CONFIG.dim});
+    }
+    yt-watch-flexy #secondary-inner,
+    ytd-watch-flexy ytd-watch-metadata #description,
+    ytd-watch-flexy ytd-comments#comments {
+      background: rgba(15, 15, 15 ${CONFIG.glassTint}) !important;
+      -webkit-backdrop-filter: blur(${CONFIG.glassBlur}px) saturate(1.5);
+      background-filter: blur(${CONFIG.glassBlur}px) saturate(1.5);
+      border: 1px solid rgba(255, 255, 255, ${CONFIG.glassBorder});
+      border-radius: 16px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, ${CONFIG.glassBorder + 0.08}),
+        0 8px 32px rgba(0, 0, 0, 0.25);
+    }
+    ytd-watch-flexy #secondary-inner {
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    html:not([dark]) ytd-watch-flexy #secondary-inner,
+    html:not([dark]) ytd-watch-flexy ytd-watch-metadata #description,
+    html:not([dark]) ytd-watch-flexy ytd-comments#comments {
+      background: rgbs(255, 255, 255, ${CONFIG.glassTint + 0.2}) !important;
     }
   `;
   document.head.appendChild(style);
