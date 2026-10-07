@@ -96,6 +96,10 @@ function updateMask(near, rect) {
   near.style.webkitMaskImage = mask;
 }
 
+function isWatchPage() {
+  return location.pathname === "/watch";
+}
+
 function startRendering(video) {
   // small hidden canvas: the video is copied here once per frame
   const sample = document.createElement("canvas");
@@ -117,17 +121,44 @@ function startRendering(video) {
 
   let lastFrame = 0;
   let lastKey = "";
+  let shown = true;
+
+  function clearAll() {
+    farCtx.clearRect(0, 0, far.width, far.height);
+    nearCtx.clearRect(0, 0, near.width, near.height);
+    lastKey = "";
+  }
+
+  function setVisible(visible) {
+    far.style.display = near.style.display = visible ? "" : "none";
+  }
 
   video.addEventListener("seeked", () => { lastKey = ""; });
+
+  // YouTube fires these when switching pages without a reload
+  document.addEventListener("yt-navigate-start", clearAll);
+  document.addEventListener("yt-navigate-finish", () => { lastKey = ""; });
 
   function tick(now) {
     requestAnimationFrame(tick);
     if (now - lastFrame < 1000 / CONFIG.fps) return;
     lastFrame = now;
 
-    const hidden = !!document.fullscreenElement;
-    far.style.display = near.style.display = hidden ? "none" : "";
-    if (hidden) return;
+    // glow only exists on the watch page, and not in fullscreen 
+    const active = isWatchPage() && !document.fullscreenElement;
+    if (!active) {
+      if (shown) {
+        clearAll();
+        setVisible(false);
+        shown = false;
+      }
+      return;
+    }
+
+    if (!shown) {
+      setVisible(true);
+      shown = true;
+    }
 
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0 || video.readyState < 2) return;
