@@ -1,18 +1,47 @@
+const api = globalThis.browser ?? globalThis.chrome;
+
+// fixed values and not user-tunable
 const CONFIG = {
   sampleW: 320,
   sampleH: 180,
-  fps: 60,
+  fps: 10,
   backingScale: 0.25, // glow canvas resolution relative to the viewport
   tileRange: 2,       // mirrored copies drawn on each side
-  farBlur: 42,        // px, the soft layer
-  nearBlur: 6,        // px, the detailed layer next to the player
   fadeStart: 55,      // % of the mask radius that stays fully visible
   fadeReach: 0.9,     // mask radius as a multiple of the video size
-  dim: 0.8,
-  glassBlur: 18,      // px, how frosted the panels look
-  glassTint: 0.85,    // 0 to 1, how dark the glass is (higher = easier to read)
-  glassBorder: 0.14,  // 0 to 1, brightness of the thin edge highlight
 };
+
+// user-tunable values, kept in sync with the popup
+let settings = { ...HALOFRAME_DEFAULTS };
+
+function applySettings() {
+  const root = document.documentElement;
+  root.classList.toggle("haloframe-on", settings.enabled);
+  root.classList.toggle("haloframe-glass", settings.glass);
+  root.style.setProperty("--hf-far-blur", settings.farBlur + "px");
+  root.style.setProperty("--hf-near-blur", settings.nearBlur + "px");
+  root.style.setProperty("--hf-dim", settings.dim);
+  root.style.setProperty("--hf-glass-blur", settings.glassBlur + "px");
+  root.style.setProperty("--hf-glass-tint", settings.glassTint);
+}
+
+async function loadSettings() {
+  try {
+    const stored = await api.storage.local.get(HALOFRAME_DEFAULTS);
+    settings = { ...HALOFRAME_DEFAULTS, ...stored};
+  } catch (err) {
+    console.warn("[HaloFrame] could not load settings, using defaults", err);
+  }
+  applySettings();
+}
+
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  for (const [key, change] of Object.entries(changes)) {
+    settings[key] = change.newValue;
+  }
+  applySettings();
+});
 
 function findVideo() {
   return document.querySelector("video.html5-main-video");
@@ -36,11 +65,17 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "haloframe-style";
   style.textContent = `
-    html { background: var(--yt-spec-base-background, #0f0f0f) !important; }
-    body, ytd-app, ytd-page-manager, ytd-watch-flexy, #page-manager {
+    html.haloframe-on { background: var(--yt-spec-base-background, #0f0f0f) !important; }
+    html.haloframe-on body,
+    html.haloframe-on ytd-app,
+    html.haloframe-on ytd-page-manager,
+    html.haloframe-on ytd-watch-flexy,
+    html.haloframe-on #page-manager {
       background: transparent !important;
     }
-    #cinematics, #cinematics-container, ytd-cinematic-container-renderer {
+    html.haloframe-on #cinematics, 
+    html.haloframe-on #cinematics-container, 
+    html.haloframe-on ytd-cinematic-container-renderer {
       display: none !important;
     }
     #haloframe-far, #haloframe-near {
@@ -51,35 +86,39 @@ function injectStyles() {
       height: 100vh;
       pointer-events: none;
     }
+    html:not(.haloframe-on) #haloframe-far,
+    html:not(.haloframe-on) #haloframe-near {
+      display: none;
+    }
     #haloframe-far {
       z-index: -2;
-      filter: blur(${CONFIG.farBlur}px) saturate(1.4) brightness(${CONFIG.dim});
+      filter: blur(var(--hf-far-blur)) saturate(1.4) brightness(var(--hf-dim));
       opacity: 0.85;
     }
     #haloframe-near {
       z-index: -1;
-      filter: blur(${CONFIG.nearBlur}px) saturate(1.3) brightness(${CONFIG.dim});
+      filter: blur(var(--hf-near-blur)) saturate(1.3) brightness(var(--hf-dim));
     }
-    yt-watch-flexy #secondary-inner,
-    ytd-watch-flexy ytd-watch-metadata #description,
-    ytd-watch-flexy ytd-comments#comments {
-      background: rgba(15, 15, 15 ${CONFIG.glassTint}) !important;
-      -webkit-backdrop-filter: blur(${CONFIG.glassBlur}px) saturate(1.5);
-      background-filter: blur(${CONFIG.glassBlur}px) saturate(1.5);
-      border: 1px solid rgba(255, 255, 255, ${CONFIG.glassBorder});
+    html.haloframe-on.haloframe-glass ytd-watch-flexy #secondary-inner,
+    html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-watch-metadata #description,
+    html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-comments#comments {
+      background: rgba(15, 15, 15, var(--hf-glass-tint)) !important;
+      -webkit-backdrop-filter: blur(var(--hf-glass-blur)) saturate(1.5);
+      backdrop-filter: blur(var(--hf-glass-blur)) saturate(1.5);
+      border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 16px;
       box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, ${CONFIG.glassBorder + 0.08}),
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
         0 8px 32px rgba(0, 0, 0, 0.25);
     }
-    ytd-watch-flexy #secondary-inner {
+    html.haloframe-on.haloframe-glass ytd-watch-flexy #secondary-inner {
       padding: 12px;
       box-sizing: border-box;
     }
-    html:not([dark]) ytd-watch-flexy #secondary-inner,
-    html:not([dark]) ytd-watch-flexy ytd-watch-metadata #description,
-    html:not([dark]) ytd-watch-flexy ytd-comments#comments {
-      background: rgbs(255, 255, 255, ${CONFIG.glassTint + 0.2}) !important;
+    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy #secondary-inner,
+    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy ytd-watch-metadata #description,
+    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy ytd-comments#comments {
+      background: rgba(255, 255, 255, calc(var(--hf-glass-tint) + 0.2)) !important;
     }
   `;
   document.head.appendChild(style);
@@ -168,8 +207,8 @@ function startRendering(video) {
     if (now - lastFrame < 1000 / CONFIG.fps) return;
     lastFrame = now;
 
-    // glow only exists on the watch page, and not in fullscreen 
-    const active = isWatchPage() && !document.fullscreenElement;
+    // glow only exists when enabled, on the watch page, and not in fullscreen
+    const active = settings.enabled && isWatchPage() && !document.fullscreenElement;
     if (!active) {
       if (shown) {
         clearAll();
@@ -214,4 +253,4 @@ function startRendering(video) {
 }
 
 injectStyles();
-waitForVideo(startRendering);
+loadSettings().then(() => waitForVideo(startRendering));
