@@ -6,6 +6,5 @@ const HALOFRAME_DEFAULTS = {
   farBlur: 42,
   nearBlur: 6,
   dim: 0.7,
-  glassBlur: 18,
   glassTint: 0.35,
 };

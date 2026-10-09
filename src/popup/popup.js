@@ -1,7 +1,11 @@
 const api = globalThis.browser ?? globalThis.chrome;
 
-const SLIDERS = ["farBlur", "nearBlur", "dim", "glassBlur", "glassTint"];
+const SLIDERS = ["farBlur", "nearBlur", "dim", "glassTint"];
 const TOGGLES = ["enabled", "glass"];
+
+function updateGlassRow(glassOn) {
+  document.getElementById("glassTint").closest(".slider").hidden = !glassOn;
+}
 
 async function load() {
   const stored = await api.storage.local.get(HALOFRAME_DEFAULTS);
@@ -17,6 +21,7 @@ function show(settings) {
   for (const id of TOGGLES) {
     document.getElementById(id).checked = settings[id];
   }
+  updateGlassRow(settings.glass);
 }
 
 async function init() {
@@ -35,13 +40,14 @@ async function init() {
     const input = document.getElementById(id);
     input.addEventListener("change", () => {
       api.storage.local.set({ [id]: input.checked });
+      if (id === "glass") updateGlassRow(input.checked);
     });
   }
 
   document.getElementById("reset").addEventListener("click", async () => {
     await api.storage.local.set(HALOFRAME_DEFAULTS);
     show(HALOFRAME_DEFAULTS);
-  })
+  });
 }
 
 init();

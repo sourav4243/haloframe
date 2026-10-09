@@ -21,7 +21,6 @@ function applySettings() {
   root.style.setProperty("--hf-far-blur", settings.farBlur + "px");
   root.style.setProperty("--hf-near-blur", settings.nearBlur + "px");
   root.style.setProperty("--hf-dim", settings.dim);
-  root.style.setProperty("--hf-glass-blur", settings.glassBlur + "px");
   root.style.setProperty("--hf-glass-tint", settings.glassTint);
 }
 
@@ -103,8 +102,6 @@ function injectStyles() {
     html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-watch-metadata #description,
     html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-comments#comments {
       background: rgba(15, 15, 15, var(--hf-glass-tint)) !important;
-      -webkit-backdrop-filter: blur(var(--hf-glass-blur)) saturate(1.5);
-      backdrop-filter: blur(var(--hf-glass-blur)) saturate(1.5);
       border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 16px;
       box-shadow:
