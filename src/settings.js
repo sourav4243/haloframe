@@ -7,4 +7,5 @@ const HALOFRAME_DEFAULTS = {
   nearBlur: 6,
   dim: 0.7,
   glassTint: 0.35,
+  quality: "balanced",
 };

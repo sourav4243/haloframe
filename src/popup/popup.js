@@ -21,6 +21,9 @@ function show(settings) {
   for (const id of TOGGLES) {
     document.getElementById(id).checked = settings[id];
   }
+
+  document.getElementById("quality").value = settings.quality;
+
   updateGlassRow(settings.glass);
 }
 
@@ -43,6 +46,10 @@ async function init() {
       if (id === "glass") updateGlassRow(input.checked);
     });
   }
+
+  document.getElementById("quality").addEventListener("change", (e) => {
+    api.storage.local.set({ quality: e.target.value });
+  });
 
   document.getElementById("reset").addEventListener("click", async () => {
     await api.storage.local.set(HALOFRAME_DEFAULTS);
