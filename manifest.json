@@ -3,9 +3,19 @@
   "name": "HaloFrame",
   "version": "0.2.0",
   "description": "Extends YouTube's video into the empty space around it: edge extension, reflections, and glass.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "permissions": ["storage"],
   "action": {
     "default_title": "HaloFrame",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
     "default_popup": "src/popup/popup.html"
   },
   "content_scripts": [
