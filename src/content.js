@@ -1,14 +1,26 @@
 const api = globalThis.browser ?? globalThis.chrome;
 
+// everything that depends on YouTube's page structure lives here,
+// so a YouTube redesign only needs edits in this one place
+const YT = {
+  video: "video.html5-main-video",
+  transparent: ["body", "ytd-app", "ytd-page-manager", "ytd-watch-flexy", "#page-manager"],
+  cinematics: ["#cinematics", "#cinematics-container", "ytd-cinematic-container-renderer"],
+  glass: ["#secondary-inner", "ytd-watch-metadata #description", "ytd-comments#comments"],
+};
+
 // fixed values and not user-tunable
 const CONFIG = {
-  sampleW: 320,
-  sampleH: 180,
-  fps: 10,
-  backingScale: 0.25, // glow canvas resolution relative to the viewport
   tileRange: 2,       // mirrored copies drawn on each side
   fadeStart: 55,      // % of the mask radius that stays fully visible
   fadeReach: 0.9,     // mask radius as a multiple of the video size
+};
+
+// performance presets, chosen in the popup
+const PRESETS = {
+  quality:  { fps: 24, backingScale: 0.35, sampleW: 320, sampleH: 180 },
+  balanced: { fps: 15, backingScale: 0.25, sampleW: 320, sampleH: 180 },
+  saver:    { fps: 8, backingScale: 0.15, sampleW: 160, sampleH: 90 },
 };
 
 // user-tunable values, kept in sync with the popup
@@ -43,7 +55,7 @@ api.storage.onChanged.addListener((changes, area) => {
 });
 
 function findVideo() {
-  return document.querySelector("video.html5-main-video");
+  return document.querySelector(YT.video);
 }
 
 function waitForVideo(callback) {
@@ -60,23 +72,23 @@ function waitForVideo(callback) {
   observer.observe(document.documentElement, { childList: true, subtree: true });
 }
 
+// builds "prefix a, prefix b, prefix c" for a list of selectors
+function scoped(prefix, list) {
+  return list.map((s) => `${prefix} ${s}`).join(",\n");
+}
+
 function injectStyles() {
   const style = document.createElement("style");
   style.id = "haloframe-style";
   style.textContent = `
     html.haloframe-on { background: var(--yt-spec-base-background, #0f0f0f) !important; }
-    html.haloframe-on body,
-    html.haloframe-on ytd-app,
-    html.haloframe-on ytd-page-manager,
-    html.haloframe-on ytd-watch-flexy,
-    html.haloframe-on #page-manager {
+    ${scoped("html.haloframe-on", YT.transparent)} {
       background: transparent !important;
     }
-    html.haloframe-on #cinematics, 
-    html.haloframe-on #cinematics-container, 
-    html.haloframe-on ytd-cinematic-container-renderer {
+    ${scoped("html.haloframe-on", YT.cinematics)} {
       display: none !important;
     }
+
     #haloframe-far, #haloframe-near {
       position: fixed;
       top: 0;
@@ -98,9 +110,7 @@ function injectStyles() {
       z-index: -1;
       filter: blur(var(--hf-near-blur)) saturate(1.3) brightness(var(--hf-dim));
     }
-    html.haloframe-on.haloframe-glass ytd-watch-flexy #secondary-inner,
-    html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-watch-metadata #description,
-    html.haloframe-on.haloframe-glass ytd-watch-flexy ytd-comments#comments {
+    ${scoped("html.haloframe-on.haloframe-glass ytd-watch-flexy", YT.glass)} {
       background: rgba(15, 15, 15, var(--hf-glass-tint)) !important;
       border: 1px solid rgba(255, 255, 255, 0.14);
       border-radius: 16px;
@@ -112,17 +122,14 @@ function injectStyles() {
       padding: 12px;
       box-sizing: border-box;
     }
-    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy #secondary-inner,
-    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy ytd-watch-metadata #description,
-    html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy ytd-comments#comments {
+    ${scoped("html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy", YT.glass)}{
       background: rgba(255, 255, 255, calc(var(--hf-glass-tint) + 0.2)) !important;
     }
   `;
   document.head.appendChild(style);
 }
 
-function drawTiles(ctx, source, rect) {
-  const k = CONFIG.backingScale;
+function drawTiles(ctx, source, rect, k) {
   const w = rect.width * k;
   const h = rect.height * k;
   const r = CONFIG.tileRange;
@@ -163,8 +170,8 @@ function isWatchPage() {
 function startRendering(video) {
   // small hidden canvas: the video is copied here once per frame
   const sample = document.createElement("canvas");
-  sample.width = CONFIG.sampleW;
-  sample.height = CONFIG.sampleH;
+  sample.width = PRESETS.balanced.sampleW;
+  sample.height = PRESETS.balanced.sampleH;
   const sampleCtx = sample.getContext("2d");
 
   // far layer: heavy blur, always visible
@@ -201,7 +208,9 @@ function startRendering(video) {
 
   function tick(now) {
     requestAnimationFrame(tick);
-    if (now - lastFrame < 1000 / CONFIG.fps) return;
+
+    const preset = PRESETS[settings.quality] ?? PRESETS.balanced;
+    if (now - lastFrame < 1000 / preset.fps) return;
     lastFrame = now;
 
     // glow only exists when enabled, on the watch page, and not in fullscreen
@@ -223,8 +232,15 @@ function startRendering(video) {
     const rect = video.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0 || video.readyState < 2) return;
 
-    const gw = Math.round(innerWidth * CONFIG.backingScale);
-    const gh = Math.round(innerHeight * CONFIG.backingScale);
+    // follow the selected preset: resizing a canvas clears it, so a change
+    // in preset triggers a redraw through the "resized" flag below
+    if (sample.width !== preset.sampleW) {
+      sample.width = preset.sampleW;
+      sample.height = preset.sampleH;
+    }
+
+    const gw = Math.round(innerWidth * preset.backingScale);
+    const gh = Math.round(innerHeight * preset.backingScale);
     const resized = far.width !== gw || far.height !== gh;
     if (resized) {
       far.width = near.width = gw;
@@ -237,8 +253,8 @@ function startRendering(video) {
     if (!playing && !resized && key === lastKey) return;
     lastKey = key;
 
-    sampleCtx.drawImage(video, 0, 0, CONFIG.sampleW, CONFIG.sampleH);
-    drawTiles(farCtx, sample, rect);
+    sampleCtx.drawImage(video, 0, 0, preset.sampleW, preset.sampleH);
+    drawTiles(farCtx, sample, rect, preset.backingScale);
 
     // the near layer is a cheap copy of the far one at the same small size
     nearCtx.clearRect(0, 0, near.width, near.height);
