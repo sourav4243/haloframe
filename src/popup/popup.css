@@ -1,0 +1,60 @@
+body {
+  width: 280px;
+  margin: 0;
+  padding: 16px;
+  font: 13px system-ui, sans-serif;
+  background: #121212;
+  color: #f1f1f1;
+}
+
+h1 { 
+  margin: 0 0 12px; 
+  font-size: 16px; 
+  font-weight: 600; 
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #2a2a2a;
+  margin: 12px 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.slider {
+  margin-bottom: 12px;
+}
+
+.slider label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.slider output {
+  color: #9a9a9a;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+button {
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #1e1e1e;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #262626;
+}
