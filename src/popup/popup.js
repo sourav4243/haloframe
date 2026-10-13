@@ -1,7 +1,7 @@
 const api = globalThis.browser ?? globalThis.chrome;
 
 const SLIDERS = ["farBlur", "nearBlur", "dim", "glassTint"];
-const TOGGLES = ["enabled", "glass"];
+const TOGGLES = ["enabled", "glass", "cropBars"];
 
 function updateGlassRow(glassOn) {
   document.getElementById("glassTint").closest(".slider").hidden = !glassOn;
