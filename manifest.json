@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "HaloFrame",
-  "version": "0.2.0",
-  "description": "Extends YouTube's video into the empty space around it: edge extension, reflections, and glass.",
+  "version": "0.4.0",
+  "description": "Extends YouTube videos into the surrounding space with ambient lighting, reflections, and glass effects.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -27,7 +27,11 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "haloframe@sourav4243.github.io"
+      "id": "haloframe@sourav4243.github.io",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   }
 }
