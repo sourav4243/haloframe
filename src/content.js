@@ -4,28 +4,33 @@ const api = globalThis.browser ?? globalThis.chrome;
 // so a YouTube redesign only needs edits in this one place
 const YT = {
   video: "video.html5-main-video",
+  player: "#movie_player",
   transparent: ["body", "ytd-app", "ytd-page-manager", "ytd-watch-flexy", "#page-manager"],
   cinematics: ["#cinematics", "#cinematics-container", "ytd-cinematic-container-renderer"],
   glass: ["#secondary-inner", "ytd-watch-metadata #description", "ytd-comments#comments"],
 };
 
-// fixed values and not user-tunable
+// fixed values, not user-tunable
 const CONFIG = {
-  tileRange: 2,       // mirrored copies drawn on each side
-  fadeStart: 55,      // % of the mask radius that stays fully visible
-  fadeReach: 0.9,     // mask radius as a multiple of the video size
-  barLuma: 14,        // a row or column darker than this (0-255 average) counts as a black bar
-  barMax: 0.25,       // never treat more than 25% of any side as a bar
-  barHistory: 5,      // detections kept; the smallest bar size seen is used
-  barEvery: 500,      // ms between detections
+  tileRange: 2,   // mirrored copies drawn on each side
+  fadeStart: 55,  // % of the mask radius that stays fully visible
+  fadeReach: 0.9, // mask radius as a multiple of the video size
+  barLuma: 14,    // a row or column darker than this (0-255 average) counts as a black bar
+  barMax: 0.25,   // never treat more than 25% of any side as a bar
+  barHistory: 5,  // detections kept; the smallest bar size seen is used
+  barEvery: 500,  // ms between detections
+  zoomMax: 3,     // never zoom the video more than this
 };
 
 // performance presets, chosen in the popup
 const PRESETS = {
   quality:  { fps: 24, backingScale: 0.35, sampleW: 320, sampleH: 180 },
   balanced: { fps: 15, backingScale: 0.25, sampleW: 320, sampleH: 180 },
-  saver:    { fps: 8, backingScale: 0.15, sampleW: 160, sampleH: 90 },
+  saver:    { fps: 8,  backingScale: 0.15, sampleW: 160, sampleH: 90 },
 };
+
+// aspect ratios the user can pick (width divided by height of the real picture)
+const RATIOS = { "2.39": 2.39, "2": 2, "1.85": 1.85, "1.33": 4 / 3 };
 
 // user-tunable values, kept in sync with the popup
 let settings = { ...HALOFRAME_DEFAULTS };
@@ -43,7 +48,7 @@ function applySettings() {
 async function loadSettings() {
   try {
     const stored = await api.storage.local.get(HALOFRAME_DEFAULTS);
-    settings = { ...HALOFRAME_DEFAULTS, ...stored};
+    settings = { ...HALOFRAME_DEFAULTS, ...stored };
   } catch (err) {
     console.warn("[HaloFrame] could not load settings, using defaults", err);
   }
@@ -93,6 +98,11 @@ function injectStyles() {
       display: none !important;
     }
 
+    html.haloframe-on.haloframe-zoom ${YT.video} {
+      transform: scale(var(--hf-zoom, 1)) !important;
+      transform-origin: center center !important;
+    }
+
     #haloframe-far, #haloframe-near {
       position: fixed;
       top: 0;
@@ -114,6 +124,7 @@ function injectStyles() {
       z-index: -1;
       filter: blur(var(--hf-near-blur)) saturate(1.3) brightness(var(--hf-dim));
     }
+
     ${scoped("html.haloframe-on.haloframe-glass ytd-watch-flexy", YT.glass)} {
       background: rgba(15, 15, 15, var(--hf-glass-tint)) !important;
       border: 1px solid rgba(255, 255, 255, 0.14);
@@ -126,7 +137,7 @@ function injectStyles() {
       padding: 12px;
       box-sizing: border-box;
     }
-    ${scoped("html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy", YT.glass)}{
+    ${scoped("html.haloframe-on.haloframe-glass:not([dark]) ytd-watch-flexy", YT.glass)} {
       background: rgba(255, 255, 255, calc(var(--hf-glass-tint) + 0.2)) !important;
     }
   `;
@@ -169,8 +180,18 @@ function detectBars(ctx, w, h) {
   };
 }
 
-// "pic" is the picture's rectangle on the page (the player minus any black
-// bars), and "crop" is the matching region of the sampled frame
+// the overlapping area of two rectangles, or null if they don't overlap
+function intersect(a, b) {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  if (right <= left || bottom <= top) return null;
+  return { left, top, width: right - left, height: bottom - top };
+}
+
+// "pic" is the picture's rectangle on the page (the visible part of the
+// video), and "crop" is the matching region of the sampled frame
 function drawTiles(ctx, source, pic, k, crop) {
   const w = pic.width * k;
   const h = pic.height * k;
@@ -193,11 +214,11 @@ function drawTiles(ctx, source, pic, k, crop) {
   }
 }
 
-function updateMask(near, rect) {
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  const rx = rect.width * CONFIG.fadeReach;
-  const ry = rect.height * CONFIG.fadeReach;
+function updateMask(near, pic) {
+  const cx = pic.left + pic.width / 2;
+  const cy = pic.top + pic.height / 2;
+  const rx = pic.width * CONFIG.fadeReach;
+  const ry = pic.height * CONFIG.fadeReach;
   const mask =
     `radial-gradient(ellipse ${rx}px ${ry}px at ${cx}px ${cy}px, ` +
     `#000 ${CONFIG.fadeStart}%, transparent 100%)`;
@@ -214,7 +235,7 @@ function startRendering(video) {
   const sample = document.createElement("canvas");
   sample.width = PRESETS.balanced.sampleW;
   sample.height = PRESETS.balanced.sampleH;
-  const sampleCtx = sample.getContext("2d");
+  const sampleCtx = sample.getContext("2d", { willReadFrequently: true });
 
   // far layer: heavy blur, always visible
   const far = document.createElement("canvas");
@@ -231,8 +252,9 @@ function startRendering(video) {
   let lastFrame = 0;
   let lastKey = "";
   let shown = true;
+  let zoom = 1;
 
-  // black bar state: current crop plus the recent detections it comes from
+  // black bar state: current bars plus the recent detections they come from
   let bars = { top: 0, bottom: 0, left: 0, right: 0 };
   let barHistory = [];
   let lastBarCheck = 0;
@@ -259,22 +281,68 @@ function startRendering(video) {
     bars = next;
   }
 
-  function clearAll() {
+  // how much of the video frame the real picture fills, as fractions
+  // of the frame's width and height
+  function pictureFractions(frameAspect) {
+    if (settings.aspect === "auto") {
+      if (barHistory.length < 3) return { fw: 1, fh: 1 }; // not sure yet
+      return {
+        fw: 1 - 2 * Math.min(bars.left, bars.right),
+        fh: 1 - 2 * Math.min(bars.top, bars.bottom),
+      };
+    }
+    const ratio = RATIOS[settings.aspect];
+    if (!ratio) return { fw: 1, fh: 1 };
+    return { fw: Math.min(1, ratio / frameAspect), fh: Math.min(1, frameAspect / ratio) };
+  }
+
+  // the smallest zoom that makes the real picture cover the whole player
+  function targetZoom() {
+    const baseW = video.offsetWidth;  // layout size, unaffected by our zoom
+    const baseH = video.offsetHeight;
+    const playerEl = document.querySelector(YT.player);
+    const win = playerEl
+      ? playerEl.getBoundingClientRect()
+      : { width: baseW, height: baseH };
+
+    const { fw, fh } = pictureFractions(baseW / baseH);
+    const z = Math.max(win.width / (baseW * fw), win.height / (baseH * fh));
+    // round up so a sliver of bar can't survive rounding
+    return Math.min(Math.max(Math.ceil(z * 100) / 100, 1), CONFIG.zoomMax);
+  }
+
+  // returns true when the zoom actually changed
+  function setZoom(z) {
+    if (z === zoom) return false;
+    zoom = z;
+    const root = document.documentElement;
+    root.style.setProperty("--hf-zoom", z);
+    root.classList.toggle("haloframe-zoom", z > 1);
+    lastKey = "";
+    return true;
+  }
+
+  function clearCanvases() {
     farCtx.clearRect(0, 0, far.width, far.height);
     nearCtx.clearRect(0, 0, near.width, near.height);
     lastKey = "";
-    resetBars();
   }
 
-  function setVisible(visible) {
+  function setGlow(visible) {
+    if (visible === shown) return;
+    shown = visible;
     far.style.display = near.style.display = visible ? "" : "none";
+    if (!visible) clearCanvases();
   }
 
   video.addEventListener("seeked", () => { lastKey = ""; });
   video.addEventListener("loadstart", resetBars); // a new video starts: forget old bars
 
   // YouTube fires these when switching pages without a reload
-  document.addEventListener("yt-navigate-start", clearAll);
+  document.addEventListener("yt-navigate-start", () => {
+    clearCanvases();
+    resetBars();
+  });
   document.addEventListener("yt-navigate-finish", () => { lastKey = ""; });
 
   function tick(now) {
@@ -284,24 +352,23 @@ function startRendering(video) {
     if (now - lastFrame < 1000 / preset.fps) return;
     lastFrame = now;
 
-    // glow only exists when enabled, on the watch page, and not in fullscreen
-    const active = settings.enabled && isWatchPage() && !document.fullscreenElement;
-    if (!active) {
-      if (shown) {
-        clearAll();
-        setVisible(false);
-        shown = false;
-      }
+    // nothing exists when disabled or away from the watch page
+    if (!settings.enabled || !isWatchPage()) {
+      setZoom(1);
+      setGlow(false);
+      resetBars();
       return;
     }
 
-    if (!shown) {
-      setVisible(true);
-      shown = true;
-    }
-
     const rect = video.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0 || video.readyState < 2) return;
+    if (
+      !video.offsetWidth || !video.offsetHeight ||
+      rect.width === 0 || rect.height === 0 || video.readyState < 2
+    ) return;
+
+    // the glow is hidden in fullscreen, but zoom and detection still run there
+    const fullscreen = !!document.fullscreenElement;
+    setGlow(!fullscreen);
 
     // follow the selected preset: resizing a canvas clears it, so a change
     // in preset triggers a redraw through the "resized" flag below
@@ -318,36 +385,64 @@ function startRendering(video) {
       far.height = near.height = gh;
     }
 
-    // when paused, only redraw if the layout or the bar setting changed
-    const key = [rect.left, rect.top, rect.width, rect.height, settings.cropBars].join(",");
+    // when paused, only redo the work if the layout or a setting changed
+    const key = [
+      rect.left, rect.top, rect.width, rect.height,
+      settings.aspect, settings.cropBars, fullscreen,
+    ].join(",");
     const playing = !video.paused && !video.ended;
     if (!playing && !resized && key === lastKey) return;
     lastKey = key;
 
     sampleCtx.drawImage(video, 0, 0, preset.sampleW, preset.sampleH);
 
-    // by default the whole frame is used; with "ignore black bars" on, only
-    // the picture inside the bars is tiled around the player
-    let crop = { x: 0, y: 0, w: sample.width, h: sample.height };
+    const aspect = settings.aspect;
+    const zoomed = aspect === "auto" || RATIOS[aspect] !== undefined;
+
+    const wantBars = aspect === "auto" || (aspect === "original" && settings.cropBars);
+    if (wantBars) updateBars(now);
+    else if (barHistory.length) resetBars();
+
+    // changing the zoom changes the video's rectangle, so wait one tick for
+    // the page to update before drawing, instead of drawing a stale layout
+    if (setZoom(zoomed ? targetZoom() : 1)) return;
+
+    if (fullscreen) return;
+
     let pic = rect;
-    if (settings.cropBars) {
-      updateBars(now);
-      const kw = 1 - bars.left - bars.right;
-      const kh = 1 - bars.top - bars.bottom;
-      crop = {
-        x: bars.left * sample.width,
-        y: bars.top * sample.height,
-        w: kw * sample.width,
-        h: kh * sample.height,
-      };
-      pic = {
-        left: rect.left + bars.left * rect.width,
-        top: rect.top + bars.top * rect.height,
-        width: kw * rect.width,
-        height: kh * rect.height,
-      };
-    } else if (barHistory.length) {
-      resetBars();
+    let crop = { x: 0, y: 0, w: sample.width, h: sample.height };
+
+    if (!zoomed) {
+      // original size: optionally leave detected black bars out of the glow
+      if (settings.cropBars) {
+        const kw = 1 - bars.left - bars.right;
+        const kh = 1 - bars.top - bars.bottom;
+        crop = {
+          x: bars.left * sample.width,
+          y: bars.top * sample.height,
+          w: kw * sample.width,
+          h: kh * sample.height,
+        };
+        pic = {
+          left: rect.left + bars.left * rect.width,
+          top: rect.top + bars.top * rect.height,
+          width: kw * rect.width,
+          height: kh * rect.height,
+        };
+      }
+    } else {
+      // zoomed: only the part of the video inside the player is visible
+      const playerEl = document.querySelector(YT.player);
+      const vis = playerEl ? intersect(rect, playerEl.getBoundingClientRect()) : null;
+      if (vis) {
+        pic = vis;
+        crop = {
+          x: ((vis.left - rect.left) / rect.width) * sample.width,
+          y: ((vis.top - rect.top) / rect.height) * sample.height,
+          w: (vis.width / rect.width) * sample.width,
+          h: (vis.height / rect.height) * sample.height,
+        };
+      }
     }
 
     drawTiles(farCtx, sample, pic, preset.backingScale, crop);
@@ -356,7 +451,7 @@ function startRendering(video) {
     nearCtx.clearRect(0, 0, near.width, near.height);
     nearCtx.drawImage(far, 0, 0);
 
-    updateMask(near, rect);
+    updateMask(near, pic);
   }
   requestAnimationFrame(tick);
 }
