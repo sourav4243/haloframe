@@ -17,7 +17,19 @@
         <input type="checkbox" id="glass">
     </label>
 
-    <label class="row">
+    <label>
+        <span>Aspect ratio</span>
+        <select id="aspect">
+            <option value="original">Original</option>
+            <option value="auto">Auto (fill player)</option>
+            <option value="2.39">2.39:1 cinema</option>
+            <option value="2">2:1</option>
+            <option value="1.85">1.85:1</option>
+            <option value="1.33">4:3</option>
+        </select>
+    </label>
+
+    <label class="row" id="cropBarsRow">
         <span>Ignore black bars</span>
         <input type="checkbox" id="cropBars">
     </label>

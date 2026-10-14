@@ -7,6 +7,10 @@ function updateGlassRow(glassOn) {
   document.getElementById("glassTint").closest(".slider").hidden = !glassOn;
 }
 
+function updateBarsRow(aspect) {
+  document.getElementById("cropBarsRow").hidden = aspect !== "original";
+}
+
 async function load() {
   const stored = await api.storage.local.get(HALOFRAME_DEFAULTS);
   return { ...HALOFRAME_DEFAULTS, ...stored };
@@ -23,7 +27,10 @@ function show(settings) {
   }
 
   document.getElementById("quality").value = settings.quality;
-
+  
+  document.getElementById("aspect").value = settings.aspect;
+  updateBarsRow(settings.aspect);
+  
   updateGlassRow(settings.glass);
 }
 
@@ -49,6 +56,11 @@ async function init() {
 
   document.getElementById("quality").addEventListener("change", (e) => {
     api.storage.local.set({ quality: e.target.value });
+  });
+
+  document.getElementById("aspect").addEventListener("change", (e) => {
+    api.storage.local.set({ aspect: e.target.value });
+    updateBarsRow(e.target.value);
   });
 
   document.getElementById("reset").addEventListener("click", async () => {

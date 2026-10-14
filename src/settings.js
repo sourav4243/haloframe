@@ -9,4 +9,5 @@ const HALOFRAME_DEFAULTS = {
   glassTint: 0.35,
   quality: "balanced",
   cropBars: true,
+  aspect: "original",
 };
