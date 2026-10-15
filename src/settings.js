@@ -8,6 +8,5 @@ const HALOFRAME_DEFAULTS = {
   dim: 0.7,
   glassTint: 0.35,
   quality: "balanced",
-  cropBars: true,
   aspect: "original",
 };

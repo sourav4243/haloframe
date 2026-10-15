@@ -388,7 +388,7 @@ function startRendering(video) {
     // when paused, only redo the work if the layout or a setting changed
     const key = [
       rect.left, rect.top, rect.width, rect.height,
-      settings.aspect, settings.cropBars, fullscreen,
+      settings.aspect, fullscreen,
     ].join(",");
     const playing = !video.paused && !video.ended;
     if (!playing && !resized && key === lastKey) return;
@@ -399,7 +399,7 @@ function startRendering(video) {
     const aspect = settings.aspect;
     const zoomed = aspect === "auto" || RATIOS[aspect] !== undefined;
 
-    const wantBars = aspect === "auto" || (aspect === "original" && settings.cropBars);
+    const wantBars = aspect === "auto";
     if (wantBars) updateBars(now);
     else if (barHistory.length) resetBars();
 
@@ -412,25 +412,7 @@ function startRendering(video) {
     let pic = rect;
     let crop = { x: 0, y: 0, w: sample.width, h: sample.height };
 
-    if (!zoomed) {
-      // original size: optionally leave detected black bars out of the glow
-      if (settings.cropBars) {
-        const kw = 1 - bars.left - bars.right;
-        const kh = 1 - bars.top - bars.bottom;
-        crop = {
-          x: bars.left * sample.width,
-          y: bars.top * sample.height,
-          w: kw * sample.width,
-          h: kh * sample.height,
-        };
-        pic = {
-          left: rect.left + bars.left * rect.width,
-          top: rect.top + bars.top * rect.height,
-          width: kw * rect.width,
-          height: kh * rect.height,
-        };
-      }
-    } else {
+    if (zoomed) {
       // zoomed: only the part of the video inside the player is visible
       const playerEl = document.querySelector(YT.player);
       const vis = playerEl ? intersect(rect, playerEl.getBoundingClientRect()) : null;

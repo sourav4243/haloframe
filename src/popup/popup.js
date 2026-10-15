@@ -1,14 +1,10 @@
 const api = globalThis.browser ?? globalThis.chrome;
 
 const SLIDERS = ["farBlur", "nearBlur", "dim", "glassTint"];
-const TOGGLES = ["enabled", "glass", "cropBars"];
+const TOGGLES = ["enabled", "glass"];
 
 function updateGlassRow(glassOn) {
   document.getElementById("glassTint").closest(".slider").hidden = !glassOn;
-}
-
-function updateBarsRow(aspect) {
-  document.getElementById("cropBarsRow").hidden = aspect !== "original";
 }
 
 async function load() {
@@ -27,9 +23,7 @@ function show(settings) {
   }
 
   document.getElementById("quality").value = settings.quality;
-  
   document.getElementById("aspect").value = settings.aspect;
-  updateBarsRow(settings.aspect);
   
   updateGlassRow(settings.glass);
 }
@@ -60,7 +54,6 @@ async function init() {
 
   document.getElementById("aspect").addEventListener("change", (e) => {
     api.storage.local.set({ aspect: e.target.value });
-    updateBarsRow(e.target.value);
   });
 
   document.getElementById("reset").addEventListener("click", async () => {

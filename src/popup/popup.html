@@ -18,7 +18,7 @@
     </label>
 
     <label>
-        <span>Aspect ratio</span>
+        <span>Aspect ratio (hide black bars)</span>
         <select id="aspect">
             <option value="original">Original</option>
             <option value="auto">Auto (fill player)</option>
@@ -29,16 +29,11 @@
         </select>
     </label>
 
-    <label class="row" id="cropBarsRow">
-        <span>Ignore black bars</span>
-        <input type="checkbox" id="cropBars">
-    </label>
-
     <hr>
 
     <div class="slider">
         <label for="farBlur">Glow softness<output id="farBlurVal"></output></label>
-        <input type="range" id="farBlur" min="10" max="80" step="1">
+        <input type="range" id="farBlur" min="0" max="80" step="1">
     </div>
     <div class="slider">
         <label for="nearBlur">Edge detail<output id="nearBlurVal"></output></label>
